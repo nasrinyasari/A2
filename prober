@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+import sys,easysnmp,time
+from easysnmp import Session
+
+command = sys.argv
+user_data = command[1]
+splited_data = user_data.split(':')
+user_ip = splited_data[0]
+user_port = splited_data[1]
+user_com = splited_data[2]
+sample_frequency = command[2]
+sample_number = int(command[3])
+sample_time = 1/float(sample_frequency)
+
+all_oids = []
+previous = []
+present = []
+
+for i in range(4,len(command)):
+	all_oids.append(command[i])
+all_oids.insert(0,'1.3.6.1.2.1.1.3.0')
+
+def snmp():
+    global present
+    global next
+
+    session = Session(hostname=user_ip,remote_port=user_port,community=user_com,version=2,timeout=1,retries=1)
+    s_result = session.get(all_oids)
+    previous = []
+
+    for i in range(1,len(s_result)):
+        if s_result[i].value!= 'NOSUCHOBJECT' and s_result[i].value!='NOSUCHINSTANCE':
+            previous.append(int(s_result[i].value))
+            if temp!=0 and len(present)>0:
+                num = int(previous[i-1])-int(present[i-1])
+                denominator = round(t_start-next,1)
+                rate = int(num/denominator)
+                if rate < 0:
+                    if s_result[i].snmp_type == 'COUNTER32':
+                        num = num + 2**32
+                        print(str(t_start)+"|"+str(num/denominator)+"|")
+                    elif s_result[i].snmp_type == 'COUNTER64':
+                        num = num + 2**64
+                        print(str(t_start)+"|"+str(num/denominator)+"|")
+                else:
+                    print(str(t_start)+"|"+str(rate)+"|")
+    present = previous
+    next = t_start
+
+if int(sample_number) == -1:
+    temp = 0
+    present = []
+    while True:
+        t_start = time.time()
+        snmp()
+        t_end = time.time()
+        temp = temp + 1
+        time.sleep(abs(sample_time - t_end + t_start))
+        
+else:
+    present = []
+    for temp in range (0, sample_number+1):
+        t_start = time.time()
+        snmp()
+        t_end = time.time()
+        time.sleep(abs(sample_time - t_end + t_start))
+
+
+
